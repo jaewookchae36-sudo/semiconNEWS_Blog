@@ -2,7 +2,8 @@ name: Daily Semiconductor Blog Poster
 
 on:
   schedule:
-    - cron: '0 23 * * *' # 한국시간 오전 8시
+    # UTC 기준 20:00 = 한국 시간(KST) 새벽 05:00
+    - cron: '0 20 * * *'
   workflow_dispatch:
 
 # 리포지토리에 파일을 쓰고(Push) 수정할 수 있는 권한 부여
