@@ -66,11 +66,14 @@ def generate_blog_content(articles):
     max_retries = 4
     base_delay = 20 # 기본 대기 시간 20초
 
+max_retries = 4
+    base_delay = 20 # 기본 대기 시간 20초
+
     for attempt in range(max_retries):
         try:
-            # 2. 서버 안정성이 가장 높은 gemini-1.5-flash 모델 적용
+            # 💡 이 부분을 gemini-3.8-flash 로 되돌려주세요.
             response = client.models.generate_content(
-                model='gemini-1.5-flash',
+                model='gemini-3.8-flash',
                 contents=prompt,
             )
             clean_json = re.sub(r'^```json\n|```$', '', response.text.strip(), flags=re.MULTILINE)
