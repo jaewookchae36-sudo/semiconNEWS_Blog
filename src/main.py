@@ -2,10 +2,9 @@ import os
 import datetime
 import json
 import re
-import time
 import feedparser
 import requests
-from google import genai
+from groq import Groq
 
 # 1. 403 에러가 나는 SemiAnalysis를 빼고, 봇 차단이 없는 구글 뉴스로 주요 기업(TSMC, 엔비디아) 추가
 RSS_FEEDS = {
@@ -37,12 +36,14 @@ def collect_news():
     return articles
 
 def generate_blog_content(articles):
-    print("[2/4] Gemini API로 SEO 최적화 블로그 본문 생성 중...")
-    api_key = os.environ.get("GEMINI_API_KEY")
-    client = genai.Client(api_key=api_key)
+    print("[2/4] Groq API(Llama 3.3)로 블로그 본문 생성 중...")
+    api_key = os.environ.get("GROQ_API_KEY")
+    if not api_key:
+        raise ValueError("GROQ_API_KEY가 설정되지 않았습니다.")
+
+    client = Groq(api_key=api_key)
     
-    # 💡 [여기 수정] 25개에서 12개로 축소하여 요청 데이터를 가볍게 만듭니다.
-    raw_text = "\n".join(articles[:12])
+    raw_text = "\n".join(articles[:20])
     today_str = datetime.datetime.now().strftime("%Y년 %m월 %d일")
     
     prompt = f"""
@@ -50,41 +51,33 @@ def generate_blog_content(articles):
     오늘 수집된 뉴스를 바탕으로 구글 검색에 잘 노출되는 롱폼 블로그 포스트를 작성하세요.
 
     [작성 규칙]
-    1. 반드시 JSON 형식으로 응답하세요. 키는 "title"과 "content" 입니다.
+    1. 반드시 JSON 형식으로만 응답하세요. 키는 "title"과 "content" 두 개입니다.
     2. "title"은 검색 유입이 잘 되도록 구체적인 키워드와 날짜({today_str})를 포함하세요.
     3. "content"는 완벽한 마크다운(Markdown) 형식으로 작성하세요.
 
     [마크다운 콘텐츠 구조]
     - 서론: 오늘 반도체 시장 흐름 2~3문장 요약 (인용구 `>` 사용)
     - 본론 1~4: 주요 섹터별(메모리, 파운드리, 소부장, AI) 상세 이슈 정리. H2(`##`), H3(`###`) 태그 활용. 기사 원문 링크 연결.
-    - 본론 5 (핵심): 언급된 **관련 기업 및 필수 반도체 용어 정리** (마크다운 표 `|---|` 사용)
+    - 본론 5 (핵심): 언급된 관련 기업 및 필수 반도체 용어 정리 (마크다운 표 `|---|` 사용)
     - 결론: 산업적 시사점 및 투자 인사이트
 
     [수집된 기사]
     {raw_text}
     """
 
-    max_retries = 4
-    base_delay = 20 # 기본 대기 시간 20초
-
-    for attempt in range(max_retries):
-        try:
-            response = client.models.generate_content(
-                model='gemini-3.8-flash',
-                contents=prompt,
-            )
-            clean_json = re.sub(r'^```json\n|```$', '', response.text.strip(), flags=re.MULTILINE)
-            post_data = json.loads(clean_json)
-            return post_data['title'], post_data['content']
-            
-        except Exception as e:
-            print(f"⚠️ API 에러 발생: {e}")
-            if attempt < max_retries - 1:
-                wait_time = base_delay * (attempt + 1)
-                print(f"🔄 서버 과부하로 {wait_time}초 대기 후 재시도합니다... ({attempt + 1}/{max_retries})")
-                time.sleep(wait_time)
-            else:
-                raise Exception("Gemini API 호출 최종 실패. 서버 상태를 확인해주세요.")
+    # Groq API 호출 (Llama 3.3 70B 모델 사용)
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {"role": "system", "content": "You must respond strictly in JSON format with keys 'title' and 'content'."},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.3,
+        response_format={"type": "json_object"} # JSON 결과 고정
+    )
+    
+    post_data = json.loads(response.choices[0].message.content)
+    return post_data['title'], post_data['content']
                 
 def save_to_markdown(title, content):
     print("[3/4] 마크다운 파일 생성 중...")
