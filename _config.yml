@@ -1,1 +1,4 @@
-
+title: 반도체 인사이트 리포트
+description: 매일 아침 업데이트되는 글로벌 반도체 및 AI 기술 동향
+theme: jekyll-theme-minimal # GitHub에서 기본 제공하는 깔끔한 무료 테마
+timezone: Asia/Seoul
