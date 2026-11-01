@@ -66,12 +66,8 @@ def generate_blog_content(articles):
     max_retries = 4
     base_delay = 20 # 기본 대기 시간 20초
 
-max_retries = 4
-    base_delay = 20 # 기본 대기 시간 20초
-
     for attempt in range(max_retries):
         try:
-            # 💡 이 부분을 gemini-3.8-flash 로 되돌려주세요.
             response = client.models.generate_content(
                 model='gemini-3.8-flash',
                 contents=prompt,
@@ -83,13 +79,12 @@ max_retries = 4
         except Exception as e:
             print(f"⚠️ API 에러 발생: {e}")
             if attempt < max_retries - 1:
-                # 3. 에러 반복 시 대기시간을 20초 -> 40초 -> 60초로 늘려 서버 회복 시간 확보
                 wait_time = base_delay * (attempt + 1)
                 print(f"🔄 서버 과부하로 {wait_time}초 대기 후 재시도합니다... ({attempt + 1}/{max_retries})")
                 time.sleep(wait_time)
             else:
                 raise Exception("Gemini API 호출 최종 실패. 서버 상태를 확인해주세요.")
-
+                
 def save_to_markdown(title, content):
     print("[3/4] 마크다운 파일 생성 중...")
     now = datetime.datetime.now()
