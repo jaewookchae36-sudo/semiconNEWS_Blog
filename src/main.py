@@ -41,7 +41,8 @@ def generate_blog_content(articles):
     api_key = os.environ.get("GEMINI_API_KEY")
     client = genai.Client(api_key=api_key)
     
-    raw_text = "\n".join(articles[:25])
+    # 💡 [여기 수정] 25개에서 12개로 축소하여 요청 데이터를 가볍게 만듭니다.
+    raw_text = "\n".join(articles[:12])
     today_str = datetime.datetime.now().strftime("%Y년 %m월 %d일")
     
     prompt = f"""
