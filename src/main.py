@@ -2,30 +2,33 @@ import os
 import datetime
 import json
 import re
+import time
 import feedparser
 import requests
 from google import genai
 
+# 1. 잦은 에러가 나는 개별 사이트 대신, 가장 안정적인 구글 뉴스 RSS로 교체 (최근 1일 이내 뉴스만 검색)
 RSS_FEEDS = {
-    '디지털데일리': 'https://www.ddaily.co.kr/news/rss_section.html?section_code=01700',
-    '전자신문': 'https://www.etnews.com/rss/010.xml',
-    '지디넷코리아': 'https://zdnet.co.kr/rss/news_section.xml?sec=0002',
-    'SemiAnalysis': 'https://www.semianalysis.com/feed',
-    '삼성전자': 'https://news.samsung.com/kr/feed',
-    'SK하이닉스': 'https://news.skhynix.co.kr/feed'
+    '구글뉴스(반도체)': 'https://news.google.com/rss/search?q=반도체+when:1d&hl=ko&gl=KR&ceid=KR:ko',
+    '구글뉴스(삼성전자)': 'https://news.google.com/rss/search?q=삼성전자+반도체+when:1d&hl=ko&gl=KR&ceid=KR:ko',
+    '구글뉴스(SK하이닉스)': 'https://news.google.com/rss/search?q=SK하이닉스+반도체+when:1d&hl=ko&gl=KR&ceid=KR:ko',
+    'SemiAnalysis': 'https://www.semianalysis.com/feed'
 }
 
-HEADERS = {'User-Agent': 'Mozilla/5.0'}
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+}
 
 def collect_news():
     articles = []
-    print("[1/4] RSS 피드 뉴스 수집 중...")
+    print("[1/4] 안정적인 구글 뉴스 RSS 피드 수집 중...")
     for source, url in RSS_FEEDS.items():
         try:
             res = requests.get(url, headers=HEADERS, timeout=5)
             res.raise_for_status()
             feed = feedparser.parse(res.content)
-            for entry in feed.entries[:4]:
+            # 출처당 상위 5개 기사 수집
+            for entry in feed.entries[:5]:
                 title = getattr(entry, 'title', '제목 없음')
                 link = getattr(entry, 'link', '')
                 articles.append(f"[{source}] {title} ({link})")
@@ -60,31 +63,37 @@ def generate_blog_content(articles):
     {raw_text}
     """
 
-    response = client.models.generate_content(
-        model='gemini-3.8-flash',
-        contents=prompt,
-    )
-    
-    clean_json = re.sub(r'^```json\n|```$', '', response.text.strip(), flags=re.MULTILINE)
-    post_data = json.loads(clean_json)
-    return post_data['title'], post_data['content']
+    # 2. API 서버 과부하(503 에러) 발생 시 3번까지 재시도하는 로직 추가
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = client.models.generate_content(
+                model='gemini-3.8-flash',
+                contents=prompt,
+            )
+            clean_json = re.sub(r'^```json\n|```$', '', response.text.strip(), flags=re.MULTILINE)
+            post_data = json.loads(clean_json)
+            return post_data['title'], post_data['content']
+            
+        except Exception as e:
+            print(f"⚠️ API 에러 발생: {e}")
+            if attempt < max_retries - 1:
+                print(f"🔄 서버 과부하로 10초 대기 후 재시도합니다... ({attempt + 1}/{max_retries})")
+                time.sleep(10)
+            else:
+                raise Exception("Gemini API 호출 최종 실패. 서버 상태를 확인해주세요.")
 
 def save_to_markdown(title, content):
-    """Jekyll 규격에 맞춰 _posts 폴더에 md 파일 생성"""
     print("[3/4] 마크다운 파일 생성 중...")
     now = datetime.datetime.now()
     
-    # 파일명 규칙: YYYY-MM-DD-제목.md (Jekyll 필수 규칙)
     date_str = now.strftime("%Y-%m-%d")
-    # 파일명에서 특수문자 제거 및 띄어쓰기를 하이픈으로 변경
     safe_title = re.sub(r'[^가-힣A-Za-z0-9\s]', '', title).strip().replace(' ', '-')
     filename = f"_posts/{date_str}-{safe_title}.md"
     
-    # 파일명 길이가 너무 길어지지 않게 조절
     if len(filename) > 100:
         filename = f"_posts/{date_str}-daily-semicon-news.md"
     
-    # 상단 메타데이터(Front Matter) 추가
     front_matter = f"""---
 layout: post
 title: "{title}"
@@ -104,6 +113,7 @@ def main():
     print("=== GitHub Pages 블로그 자동화 시작 ===")
     articles = collect_news()
     if not articles:
+        print("수집된 뉴스가 없습니다.")
         return
         
     title, content = generate_blog_content(articles)
