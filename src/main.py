@@ -7,12 +7,13 @@ import feedparser
 import requests
 from google import genai
 
-# 1. 잦은 에러가 나는 개별 사이트 대신, 가장 안정적인 구글 뉴스 RSS로 교체 (최근 1일 이내 뉴스만 검색)
+# 1. 403 에러가 나는 SemiAnalysis를 빼고, 봇 차단이 없는 구글 뉴스로 주요 기업(TSMC, 엔비디아) 추가
 RSS_FEEDS = {
     '구글뉴스(반도체)': 'https://news.google.com/rss/search?q=반도체+when:1d&hl=ko&gl=KR&ceid=KR:ko',
     '구글뉴스(삼성전자)': 'https://news.google.com/rss/search?q=삼성전자+반도체+when:1d&hl=ko&gl=KR&ceid=KR:ko',
     '구글뉴스(SK하이닉스)': 'https://news.google.com/rss/search?q=SK하이닉스+반도체+when:1d&hl=ko&gl=KR&ceid=KR:ko',
-    'SemiAnalysis': 'https://www.semianalysis.com/feed'
+    '구글뉴스(TSMC)': 'https://news.google.com/rss/search?q=TSMC+반도체+when:1d&hl=ko&gl=KR&ceid=KR:ko',
+    '구글뉴스(엔비디아)': 'https://news.google.com/rss/search?q=엔비디아+반도체+when:1d&hl=ko&gl=KR&ceid=KR:ko'
 }
 
 HEADERS = {
@@ -27,7 +28,6 @@ def collect_news():
             res = requests.get(url, headers=HEADERS, timeout=5)
             res.raise_for_status()
             feed = feedparser.parse(res.content)
-            # 출처당 상위 5개 기사 수집
             for entry in feed.entries[:5]:
                 title = getattr(entry, 'title', '제목 없음')
                 link = getattr(entry, 'link', '')
@@ -63,12 +63,14 @@ def generate_blog_content(articles):
     {raw_text}
     """
 
-    # 2. API 서버 과부하(503 에러) 발생 시 3번까지 재시도하는 로직 추가
-    max_retries = 3
+    max_retries = 4
+    base_delay = 20 # 기본 대기 시간 20초
+
     for attempt in range(max_retries):
         try:
+            # 2. 서버 안정성이 가장 높은 gemini-1.5-flash 모델 적용
             response = client.models.generate_content(
-                model='gemini-3.8-flash',
+                model='gemini-1.5-flash',
                 contents=prompt,
             )
             clean_json = re.sub(r'^```json\n|```$', '', response.text.strip(), flags=re.MULTILINE)
@@ -78,8 +80,10 @@ def generate_blog_content(articles):
         except Exception as e:
             print(f"⚠️ API 에러 발생: {e}")
             if attempt < max_retries - 1:
-                print(f"🔄 서버 과부하로 10초 대기 후 재시도합니다... ({attempt + 1}/{max_retries})")
-                time.sleep(10)
+                # 3. 에러 반복 시 대기시간을 20초 -> 40초 -> 60초로 늘려 서버 회복 시간 확보
+                wait_time = base_delay * (attempt + 1)
+                print(f"🔄 서버 과부하로 {wait_time}초 대기 후 재시도합니다... ({attempt + 1}/{max_retries})")
+                time.sleep(wait_time)
             else:
                 raise Exception("Gemini API 호출 최종 실패. 서버 상태를 확인해주세요.")
 
