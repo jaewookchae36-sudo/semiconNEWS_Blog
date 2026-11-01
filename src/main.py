@@ -67,7 +67,7 @@ def generate_blog_content(articles):
 
     # Groq API 호출 (안정화된 Llama 3 70B 모델 사용)
     response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",  # 💡 
+        model="mixtral-8x7b-32768",  # 💡 
         messages=[
             {"role": "system", "content": "You must respond strictly in JSON format with keys 'title' and 'content'."},
             {"role": "user", "content": prompt}
