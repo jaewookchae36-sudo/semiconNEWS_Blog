@@ -15,4 +15,4 @@
   {% endfor %}
 </ul>
 
-<meta name="naver-site-verification" content="07743e70f1830ac76ecfea337a2794133c5fd578" />
+
