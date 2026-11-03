@@ -14,4 +14,4 @@
     </li>
   {% endfor %}
 </ul>
-<meta name="google-site-verification" content="A78MxBR3zHRLZ4qXAoRNzH6-Tscqxrb4m4qnd0onQdA" />
+
