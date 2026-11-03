@@ -4,3 +4,5 @@ theme: jekyll-theme-minimal # GitHub에서 기본 제공하는 깔끔한 무료 
 timezone: Asia/Seoul
 url: "https://jaewookchae36-sudo.github.io"
 baseurl: "/semiconNEWS_Blog"
+plugins:
+  - jekyll-sitemap
