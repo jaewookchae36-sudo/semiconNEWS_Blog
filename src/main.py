@@ -39,19 +39,20 @@ def generate_blog_content(articles):
         
     client = OpenAI(api_key=api_key)
     
-    # 안정적이므로 기사를 25개까지 넉넉하게 보냅니다.
     raw_text = "\n".join(articles[:25])
     today_str = datetime.datetime.now().strftime("%Y년 %m월 %d일")
     
+    # 💡 [여기 수정] 기존 system_prompt 변수의 문자열 부분을 아래 가이드로 교체합니다.
     system_prompt = """
     당신은 반도체 산업 전문 블로거입니다. 
-    오늘 수집된 뉴스를 바탕으로 구글 검색에 잘 노출되는 롱폼 블로그 포스트를 마크다운(Markdown)으로 작성하세요.
+    오늘 수집된 뉴스를 바탕으로 독자가 읽기 편한 롱폼 마크다운 아티클을 작성하세요.
 
-    [마크다운 콘텐츠 구조]
-    - 서론: 오늘 반도체 시장 흐름 2~3문장 요약 (인용구 `>` 사용)
-    - 본론 1~4: 주요 섹터별(메모리, 파운드리, 소부장, AI) 상세 이슈 정리. H2(`##`), H3(`###`) 태그 활용. 기사 원문 링크 연결.
-    - 본론 5 (핵심): 언급된 **관련 기업 및 필수 반도체 용어 정리** (마크다운 표 `|---|` 사용)
-    - 결론: 산업적 시사점 및 투자 인사이트
+    [가독성 극대화 가이드]
+    1. 적절한 위치에 리액트 방식 이모지(⚡, 📊, 🔍, 💡, 🚀)를 적극적으로 활용하세요.
+    2. 중요한 숫자, 기업명, 공정명은 **굵은 글씨** 처리하세요.
+    3. 주요 요약 섹션에는 인용구 blockquote(`>`)를 사용하세요.
+    4. 섹션과 섹션 사이에는 구분선(`---`)을 넣어 단락을 깔끔하게 분리하세요.
+    5. 마지막 관련 기업 정리 섹션은 마크다운 표(`|---|`)를 이용해 깔끔하게 정돈하세요.
     """
 
     user_prompt = f"""
@@ -62,7 +63,6 @@ def generate_blog_content(articles):
     {raw_text}
     """
 
-    # 가장 저렴하고 빠르며 절대 멈추지 않는 gpt-4o-mini 모델
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
@@ -75,7 +75,6 @@ def generate_blog_content(articles):
     
     post_data = json.loads(response.choices[0].message.content)
     return post_data['title'], post_data['content']
-
 import random
 
 # 반도체/테크 관련 Unsplash 고화질 키워드 이미지 URL 리스트
