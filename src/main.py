@@ -1,13 +1,10 @@
 import os
 import datetime
 import json
-import re
-import time
 import feedparser
 import requests
-from google import genai
+from openai import OpenAI
 
-# 1. 봇 차단이 없는 구글 뉴스 RSS로 핵심 뉴스 수집
 RSS_FEEDS = {
     '구글뉴스(반도체)': 'https://news.google.com/rss/search?q=반도체+when:1d&hl=ko&gl=KR&ceid=KR:ko',
     '구글뉴스(삼성전자)': 'https://news.google.com/rss/search?q=삼성전자+반도체+when:1d&hl=ko&gl=KR&ceid=KR:ko',
@@ -16,13 +13,11 @@ RSS_FEEDS = {
     '구글뉴스(엔비디아)': 'https://news.google.com/rss/search?q=엔비디아+반도체+when:1d&hl=ko&gl=KR&ceid=KR:ko'
 }
 
-HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-}
+HEADERS = {'User-Agent': 'Mozilla/5.0'}
 
 def collect_news():
     articles = []
-    print("[1/4] 안정적인 구글 뉴스 RSS 피드 수집 중...")
+    print("[1/4] 구글 뉴스 RSS 피드 수집 중...")
     for source, url in RSS_FEEDS.items():
         try:
             res = requests.get(url, headers=HEADERS, timeout=5)
@@ -37,64 +32,56 @@ def collect_news():
     return articles
 
 def generate_blog_content(articles):
-    print("[2/4] Gemini API로 SEO 최적화 블로그 본문 생성 중...")
-    api_key = os.environ.get("GEMINI_API_KEY")
+    print("[2/4] OpenAI (gpt-4o-mini)로 블로그 본문 생성 중...")
+    api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
-        raise ValueError("GEMINI_API_KEY 환경 변수가 설정되지 않았습니다.")
+        raise ValueError("OPENAI_API_KEY 환경 변수가 설정되지 않았습니다.")
         
-    client = genai.Client(api_key=api_key)
+    client = OpenAI(api_key=api_key)
     
-    # 서버 부담을 줄이기 위해 가장 중요한 최신 기사 12개만 전송
-    raw_text = "\n".join(articles[:12])
+    # 안정적이므로 기사를 25개까지 넉넉하게 보냅니다.
+    raw_text = "\n".join(articles[:25])
     today_str = datetime.datetime.now().strftime("%Y년 %m월 %d일")
     
-    prompt = f"""
+    system_prompt = """
     당신은 반도체 산업 전문 블로거입니다. 
-    오늘 수집된 뉴스를 바탕으로 구글 검색에 잘 노출되는 롱폼 블로그 포스트를 작성하세요.
-
-    [작성 규칙]
-    1. 반드시 JSON 형식으로 응답하세요. 키는 "title"과 "content" 입니다.
-    2. "title"은 검색 유입이 잘 되도록 구체적인 키워드와 날짜({today_str})를 포함하세요.
-    3. "content"는 완벽한 마크다운(Markdown) 형식으로 작성하세요.
+    오늘 수집된 뉴스를 바탕으로 구글 검색에 잘 노출되는 롱폼 블로그 포스트를 마크다운(Markdown)으로 작성하세요.
 
     [마크다운 콘텐츠 구조]
     - 서론: 오늘 반도체 시장 흐름 2~3문장 요약 (인용구 `>` 사용)
     - 본론 1~4: 주요 섹터별(메모리, 파운드리, 소부장, AI) 상세 이슈 정리. H2(`##`), H3(`###`) 태그 활용. 기사 원문 링크 연결.
     - 본론 5 (핵심): 언급된 **관련 기업 및 필수 반도체 용어 정리** (마크다운 표 `|---|` 사용)
     - 결론: 산업적 시사점 및 투자 인사이트
+    """
 
-    [수집된 기사]
+    user_prompt = f"""
+    반드시 JSON 형식으로만 응답하세요. 
+    키는 "title" (검색 유입이 잘 되도록 날짜 {today_str} 포함)과 "content" (완벽한 마크다운) 두 개입니다.
+
+    수집된 기사:
     {raw_text}
     """
 
-    max_retries = 4
-    base_delay = 20 # 기본 대기 시간 20초
-
-    for attempt in range(max_retries):
-        try:
-            # 절대 이름이 사라지지 않는 구글 공식 alias 적용 (가장 최신 1.5 flash 모델을 자동 매칭)
-            response = client.models.generate_content(
-                model='gemini-1.5-flash-latest', 
-                contents=prompt,
-            )
-            clean_json = re.sub(r'^```json\n|```$', '', response.text.strip(), flags=re.MULTILINE)
-            post_data = json.loads(clean_json)
-            return post_data['title'], post_data['content']
-            
-        except Exception as e:
-            print(f"⚠️ API 에러 발생: {e}")
-            if attempt < max_retries - 1:
-                wait_time = base_delay * (attempt + 1)
-                print(f"🔄 서버 과부하로 {wait_time}초 대기 후 재시도합니다... ({attempt + 1}/{max_retries})")
-                time.sleep(wait_time)
-            else:
-                raise Exception("Gemini API 호출 최종 실패. 구글 무료 서버 트래픽 폭주로 인한 중단입니다.")
+    # 가장 저렴하고 빠르며 절대 멈추지 않는 gpt-4o-mini 모델
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ],
+        temperature=0.3,
+        response_format={"type": "json_object"}
+    )
+    
+    post_data = json.loads(response.choices[0].message.content)
+    return post_data['title'], post_data['content']
 
 def save_to_markdown(title, content):
     print("[3/4] 마크다운 파일 생성 중...")
     now = datetime.datetime.now()
     
     date_str = now.strftime("%Y-%m-%d")
+    import re
     safe_title = re.sub(r'[^가-힣A-Za-z0-9\s]', '', title).strip().replace(' ', '-')
     filename = f"_posts/{date_str}-{safe_title}.md"
     
