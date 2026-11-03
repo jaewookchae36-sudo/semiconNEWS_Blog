@@ -76,8 +76,19 @@ def generate_blog_content(articles):
     post_data = json.loads(response.choices[0].message.content)
     return post_data['title'], post_data['content']
 
+import random
+
+# 반도체/테크 관련 Unsplash 고화질 키워드 이미지 URL 리스트
+TECH_IMAGES = [
+    "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80", # Microchip
+    "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&w=1200&q=80", # Tech/Cyber
+    "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=1200&q=80", # Matrix/Code
+    "https://images.unsplash.com/photo-1517077304055-6e89abbf09b0?auto=format&fit=crop&w=1200&q=80", # Hardware
+    "https://images.unsplash.com/photo-1531297484001-80022131f5a1?auto=format&fit=crop&w=1200&q=80"  # Laptop/Tech
+]
+
 def save_to_markdown(title, content):
-    print("[3/4] 마크다운 파일 생성 중...")
+    print("[3/4] 마크다운 파일 및 대표 이미지 생성 중...")
     now = datetime.datetime.now()
     
     date_str = now.strftime("%Y-%m-%d")
@@ -88,20 +99,26 @@ def save_to_markdown(title, content):
     if len(filename) > 100:
         filename = f"_posts/{date_str}-daily-semicon-news.md"
     
+    # 대표 이미지 무작위 선택
+    header_image = random.choice(TECH_IMAGES)
+    
     front_matter = f"""---
 layout: post
 title: "{title}"
 date: {now.strftime("%Y-%m-%d %H:%M:%S +0900")}
 categories: [반도체, 일일브리핑]
 tags: [반도체, HBM, 파운드리, AI반도체, 주식]
+image: "{header_image}"
 ---
+
+![반도체 헤더 이미지]({header_image})
 
 """
     os.makedirs("_posts", exist_ok=True)
     with open(filename, "w", encoding="utf-8") as f:
         f.write(front_matter + content)
     
-    print(f"✅ 파일 생성 완료: {filename}")
+    print(f"✅ 대표 이미지가 포함된 파일 생성 완료: {filename}")
 
 def main():
     print("=== GitHub Pages 블로그 자동화 시작 ===")
