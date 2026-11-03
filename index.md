@@ -15,4 +15,4 @@
   {% endfor %}
 </ul>
 
-google-site-verification: google3537c33e75cf546c.html
+<meta name="google-site-verification" content="A78MxBR3zHRLZ4qXAoRNzH6-Tscqxrb4m4qnd0onQdA" />
